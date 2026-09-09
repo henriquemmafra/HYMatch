@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  build-and-deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -23,14 +23,80 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Reconstruct Vite source from authored preview
+        shell: bash
+        run: |
+          cat chunks/part*.txt > /tmp/hymatch-preview.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          html = Path('/tmp/hymatch-preview.html').read_text()
+          style_match = re.search(r'<style>(.*?)</style>', html, re.S)
+          script_match = re.search(r'<script type="text/babel"[^>]*>(.*?)</script>', html, re.S)
+          if not style_match or not script_match:
+              raise SystemExit('Could not extract HYMatch source from preview chunks')
+
+          style = style_match.group(1)
+          script = script_match.group(1)
+          script = script.replace(
+              'const { useCallback, useEffect, useMemo, useRef, useState } = React;',
+              ''
+          )
+          script = script.replace(
+              'ReactDOM.createRoot(document.getElementById("root")).render(<App />);',
+              'createRoot(document.getElementById("root")).render(<App />);'
+          )
+
+          Path('src').mkdir(exist_ok=True)
+          Path('src/styles.css').write_text(style)
+          Path('src/main.jsx').write_text(
+              'import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";\n'
+              'import { createRoot } from "react-dom/client";\n'
+              'import "./styles.css";\n' + script.strip() + '\n'
+          )
+          Path('index.html').write_text('''<!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+              <meta name="theme-color" content="#080B14" />
+              <meta name="description" content="HYMatch — a high-yield medical matching game." />
+              <title>HYMatch</title>
+            </head>
+            <body>
+              <div id="root"></div>
+              <script type="module" src="/src/main.jsx"></script>
+            </body>
+          </html>
+          ''')
+          PY
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify no runtime Babel or CDN React
+        run: |
+          ! grep -R "unpkg.com\|babel.min.js\|text/babel" index.html src
+          test -f src/main.jsx
+
+      - name: Build
+        run: npm run build
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - name: Upload static site
+
+      - name: Upload built site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: ./dist
+
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
