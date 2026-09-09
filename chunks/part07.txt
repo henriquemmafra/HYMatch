@@ -1,0 +1,141 @@
+t cols = board.length <= 12 ? 3 : 4;
+  const rows = Math.ceil(board.length / cols);
+  return (
+    <div className="board-wrap">
+      <div className="board" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+        {board.map((c, i) => (
+          <Card key={c.id || i} card={c} cols={cols} accent={accent} open={flipped.includes(i)} matched={matched.includes(i)} shaking={pending && !connected && flipped.includes(i)} disabled={disabled} pending={pending && !!onAdvance} onClick={() => (pending ? onAdvance?.() : onFlip(i))} />
+        ))}
+      </div>
+      {connected && flipped.length === 2 && <Connection from={flipped[0]} to={flipped[1]} cols={cols} rows={rows} accent={accent} />}
+    </div>
+  );
+}
+
+function Hud({ deckKey, remaining, combo, onExit, right }) {
+  return (
+    <>
+      <div className="hud-top"><button className="back" onClick={onExit}>← Back</button><span>{right}</span></div>
+      <div className="hud-title"><strong style={{ color: hue(deckKey) }}>{deckLabel(deckKey)}</strong>{combo && <b style={{ background: hue(deckKey) }}>{combo}</b>}</div>
+      <div className="remaining">{remaining} {remaining === 1 ? "connection" : "connections"} remaining</div>
+    </>
+  );
+}
+
+function PlayerBar({ names, scores, turn, total, accent, done }) {
+  return (
+    <div className="players">
+      {names.map((n, i) => (
+        <div className={`player ${turn === i && !done ? "active" : ""}`} key={i}>
+          <div><span>{n}</span><strong style={{ color: turn === i && !done ? accent : undefined }}>{scores[i]}</strong></div>
+          <div className="segments">{Array.from({ length: total }).map((_, k) => <i key={k} style={{ background: k < scores[i] ? accent : undefined }} />)}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Collected({ items, label, accent, dim = false }) {
+  return (
+    <div className="collected">
+      <div className="collected-title" style={{ color: dim ? undefined : accent }}>{label}{items.length ? ` · ${items.length}` : ""}</div>
+      {items.map((it, i) => (
+        <div className="collected-item" key={`${it.q}-${i}`}>
+          <div><strong>{it.q}</strong><span style={{ color: accent }}> ↔ </span><span>{it.a}</span></div>
+          {it.p && <small>{it.p}</small>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ActionBar({ pending, hit, q, a, pearl, note, onAdvance, canAdvance, cta, accent }) {
+  if (!pending) return <div className="action-note">{note}</div>;
+  return (
+    <div className={`action ${hit ? "hit" : "miss"}`} style={{ "--accent": accent }}>
+      <div className="action-label">{hit ? "Connected" : "No connection"}</div>
+      {hit ? (
+        <>
+          <div className="pair-line"><strong>{q}</strong><span> ↔ </span><em>{a}</em></div>
+          {pearl && <div className="pearl"><b>PEARL</b><p>{pearl}</p></div>}
+        </>
+      ) : <p className="miss-copy">Read both, then carry on.</p>}
+      <Button accent={accent} tone={hit ? "solid" : "quiet"} disabled={!canAdvance} onClick={onAdvance}>{cta}</Button>
+    </div>
+  );
+}
+
+function Review({ board, accent }) {
+  const pairs = useMemo(() => board.filter((c) => c.side === "q").map((c) => [c.text, c.mate, c.pearl]), [board]);
+  return (
+    <div className="review">
+      <div className="eyebrow">Every connection in this round</div>
+      {pairs.map(([q, a, p]) => <div className="review-item" key={q}><strong>{q}</strong><span style={{ color: accent }}>{a}</span>{p && <small>{p}</small>}</div>)}
+    </div>
+  );
+}
+
+function Game({ deckKey, nPairs, onExit, twoPlayer = false, names = [] }) {
+  const [board] = useState(() => buildBoard(deckKey, nPairs));
+  const [flipped, setFlipped] = useState([]);
+  const [matched, setMatched] = useState([]);
+  const [found, setFound] = useState([]);
+  const [moves, setMoves] = useState(0);
+  const [hits, setHits] = useState(0);
+  const [streak, setStreak] = useState([0, 0]);
+  const [turn, setTurn] = useState(0);
+  const [scores, setScores] = useState([0, 0]);
+  const [secs, setSecs] = useState(0);
+  const pending = flipped.length === 2;
+  const hit = pending && board[flipped[0]].pairId === board[flipped[1]].pairId;
+  const done = matched.length === board.length;
+  const accent = hue(deckKey);
+  const totalPairs = board.length / 2;
+  const pairText = pending ? getPairText(board, flipped) : { q: "", a: "", pearl: "" };
+
+  useEffect(() => {
+    if (done) return;
+    const id = setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [done]);
+
+  const flip = (i) => {
+    if (done || pending || flipped.includes(i) || matched.includes(i)) return;
+    const next = [...flipped, i];
+    setFlipped(next);
+    if (next.length === 2) setMoves((m) => m + 1);
+  };
+
+  const advance = useCallback(() => {
+    if (flipped.length !== 2) return;
+    const [i, j] = flipped;
+    if (board[i].pairId === board[j].pairId) {
+      const pair = getPairText(board, flipped);
+      setMatched((m) => [...m, i, j]);
+      setHits((h) => h + 1);
+      setFound((f) => [...f, { q: pair.q, a: pair.a, p: pair.pearl, by: twoPlayer ? turn : 0 }]);
+      setStreak((s) => s.map((v, k) => (k === turn ? v + 1 : v)));
+      if (twoPlayer) setScores((s) => s.map((v, k) => (k === turn ? v + 1 : v)));
+    } else {
+      setStreak((s) => s.map((v, k) => (k === turn ? 0 : v)));
+      if (twoPlayer) setTurn((t) => 1 - t);
+    }
+    setFlipped([]);
+  }, [flipped, board, twoPlayer, turn]);
+
+  useAdvanceKey(pending, advance);
+  const acc = moves ? Math.round((hits / moves) * 100) : 0;
+
+  return (
+    <section className="game-screen">
+      <Hud deckKey={deckKey} remaining={totalPairs - matched.length / 2} combo={comboWord(streak[turn])} onExit={onExit} right={twoPlayer ? "" : mmss(secs)} />
+      {twoPlayer && <><Collected items={found.filter((f) => f.by === 1)} label={names[1]} accent={accent} dim /><PlayerBar names={names} scores={scores} turn={turn} total={totalPairs} accent={accent} done={done} /></>}
+      <Board board={board} flipped={flipped} matched={matched} onFlip={flip} onAdvance={advance} pending={pending} connected={pending && hit} disabled={done} accent={accent} />
+      <Collected items={twoPlayer ? found.filter((f) => f.by === 0) : found} label={twoPlayer ? names[0] : "Connected"} accent={accent} />
+      {!done && <ActionBar pending={pending} hit={hit} {...pairText} accent={accent} onAdvance={advance} canAdvance cta={hit ? "Keep going" : twoPlayer ? `Pass to ${names[1 - turn]}` : "Turn them back"} note={twoPlayer ? `${names[turn]} to play` : flipped.length === 1 ? "Now find what it connects to." : `${moves} attempts · ${acc}% accurate`} />}
+      {done && <div className="finish"><h3>{twoPlayer ? scores[0] === scores[1] ? `Tied at ${scores[0]}.` : `${names[scores[0] > scores[1] ? 0 : 1]} wins ${Math.max(...scores)}–${Math.min(...scores)}.` : `Network complete in ${mmss(secs)} · ${acc}% accurate`}</h3><Button accent={accent} onClick={onExit}>New round</Button><Review board={board} accent={accent} /></div>}
+    </section>
+  );
+}
+
+function Online
