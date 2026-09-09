@@ -16,16 +16,17 @@
   <script>
     (async () => {
       try {
-        const base = "https://raw.githubusercontent.com/henriquemmafra/HYMatch/main/chunks/";
+        const base = "./chunks/";
         const names = Array.from({ length: 10 }, (_, i) => `part${String(i).padStart(2, "0")}.txt`);
-        const parts = await Promise.all(names.map(async (name) => {
-          const response = await fetch(base + name + "?v=1", { cache: "no-store" });
+        const parts = [];
+        for (const name of names) {
+          const response = await fetch(base + name + "?v=2", { cache: "no-store" });
           if (!response.ok) throw new Error(`${name}: ${response.status}`);
-          return response.text();
-        }));
-        document.open();
-        document.write(parts.join(""));
-        document.close();
+          parts.push(await response.text());
+        }
+        const html = parts.join("");
+        const blob = new Blob([html], { type: "text/html" });
+        location.replace(URL.createObjectURL(blob));
       } catch (error) {
         document.getElementById("status").textContent = "HYMatch could not load. Refresh the page.";
         console.error(error);
