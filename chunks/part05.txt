@@ -1,0 +1,108 @@
+disease becomes more common.",
+  "Odds ratio": "Approximates relative risk well when the disease is rare.",
+  "Relative risk": "Needs incidence, which is why it requires following people forward in time.",
+  "Attributable risk": "Answers how much of the disease the exposure itself is responsible for.",
+  "Number needed to treat": "Smaller is better, and its mirror image is the number needed to harm.",
+  "Type I error (α)": "Convicting an innocent null hypothesis, with α fixed before the study begins.",
+  "Type II error (β)": "Acquitting a guilty null, usually because the sample was too small.",
+  "Power": "Rises with effect size and sample size, and falls as variability grows.",
+  "Confounding bias": "Handled by randomization, matching, restriction or stratification.",
+  "Lead-time bias": "Survival only appears longer; death arrives at the same moment.",
+  "Recall bias": "Cases search their memory harder than controls do.",
+  "Berkson bias": "Hospital patients are sicker than the population they are meant to represent.",
+  "Hawthorne effect": "Being watched changes behaviour, independently of the intervention.",
+  "Case-control study": "Cheap, fast and good for rare disease, but it cannot give incidence.",
+  "Cohort study": "Can follow several outcomes at once, but is wasteful when disease is rare.",
+  "Cross-sectional study": "Shows association only, since exposure and outcome are measured at the same instant.",
+  "Randomized controlled trial": "Randomization balances the confounders nobody thought to measure.",
+  "Incidence": "Falls when a disease is cured quickly, and also when it kills quickly.",
+  "Prevalence": "Rises when survival improves without a cure.",
+  "95% confidence interval": "Crossing 1 for a ratio, or 0 for a difference, means not significant.",
+  "Standard error of the mean": "Shrinks as the sample grows, which the standard deviation does not.",
+
+  "Broca area": "Patients know exactly what they mean to say, and the effort frustrates them.",
+  "Wernicke area": "Words flow freely but mean nothing, and the patient does not notice.",
+  "Arcuate fasciculus": "Conduction aphasia: fluency and comprehension survive, repetition does not.",
+  "Bilateral amygdala": "Hyperorality, hypersexuality and disinhibition, classically after HSV-1 encephalitis.",
+  "Orbitofrontal cortex": "Personality collapses while intellect stays intact, as in Phineas Gage.",
+  "Subthalamic nucleus": "Wild flinging of one side, usually from a lacunar stroke.",
+  "Substantia nigra pars compacta": "Resting tremor, rigidity and bradykinesia, with Lewy bodies of α-synuclein.",
+  "Caudate and striatum": "GABAergic neurons die first, and caudate atrophy widens the lateral ventricles.",
+  "Cerebellar hemisphere": "Deficits stay on the same side because the pathway crosses twice.",
+  "Cerebellar vermis": "The midline governs the trunk, and chronic alcohol use attacks it first.",
+  "Mammillary bodies": "Thiamine deficiency, so give thiamine before any glucose.",
+  "PPRF, pontine gaze center": "A PPRF lesion prevents conjugate gaze toward the lesion; a destructive frontal eye field lesion drives the eyes toward the cortical lesion.",
+  "Medial longitudinal fasciculus": "Adduction fails while the other eye jerks; bilateral cases suggest multiple sclerosis.",
+  "Compressive CN III palsy": "Parasympathetic fibres ride on the outside, so compression blows the pupil first.",
+  "CN IV palsy": "The head tilts away from the affected side to compensate.",
+  "CN VI palsy": "Its long intracranial course makes it the first to fail when pressure rises.",
+  "Lateral medulla, PICA": "Adds ipsilateral Horner syndrome and crossed loss of pain on the body.",
+  "Medial medulla, ASA": "Contralateral arm and leg weakness with loss of position sense.",
+  "Anterior cerebral artery": "Leg over arm, and urinary incontinence can appear.",
+  "Middle cerebral artery": "Aphasia if the dominant side, neglect if not.",
+  "Posterior cerebral artery": "The occipital pole has a second blood supply, which is why the macula is spared.",
+  "Optic chiasm": "The crossing nasal fibres are hit, classically by a pituitary adenoma.",
+  "Anterior spinal artery infarct": "Bilateral weakness and lost pain sensation, with vibration untouched.",
+  "Hemisection of the cord": "Pain fibres cross within a few segments; motor fibres crossed long before.",
+  "Dorsal columns": "Romberg is positive; both tabes dorsalis and B12 deficiency strike here.",
+  "Lateral hypothalamus": "Lesion it and you shrink; the ventromedial nucleus does the opposite.",
+};
+
+
+function shuffle(arr, rng = Math.random) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildBoard(deckKey, nPairs, rng = Math.random) {
+  const source = deckKey === "mixed"
+    ? DECK_KEYS.flatMap((k) => DECKS[k].pairs)
+    : DECKS[deckKey]?.pairs;
+  if (!source) throw new Error(`Unknown deck: ${deckKey}`);
+  if (nPairs > source.length) throw new Error(`Not enough pairs in ${deckKey}`);
+
+  const chosen = shuffle(source, rng).slice(0, nPairs);
+  const cards = [];
+  chosen.forEach(([q, a], pairId) => {
+    const pearl = PEARLS[q] || "";
+    cards.push({ id: `${pairId}-q`, pairId, side: "q", text: q, mate: a, pearl });
+    cards.push({ id: `${pairId}-a`, pairId, side: "a", text: a, mate: q, pearl });
+  });
+  return shuffle(cards, rng);
+}
+
+function getPairText(board, flipped) {
+  const [i, j] = flipped;
+  if (i == null || j == null) return { q: "", a: "", pearl: "" };
+  const first = board[i];
+  const second = board[j];
+  const qCard = first.side === "q" ? first : second;
+  const aCard = first.side === "a" ? first : second;
+  return { q: qCard.text, a: aCard.text, pearl: qCard.pearl || aCard.pearl || "" };
+}
+
+function roomCanBeJoined(room) {
+  return !!room && room.status === "waiting" && !room.players?.p2;
+}
+
+
+function realtimeAvailable(){ return false; }
+async function sharedGet(){ throw new Error("Realtime backend not configured"); }
+async function sharedSet(){ throw new Error("Realtime backend not configured"); }
+function loadSession(){ try { const raw=localStorage.getItem("hym:session"); return raw?JSON.parse(raw):null; } catch { return null; } }
+function saveSession(value){ try { localStorage.setItem("hym:session", JSON.stringify(value)); } catch {} }
+function clearSession(){ try { localStorage.removeItem("hym:session"); } catch {} }
+
+const { useCallback, useEffect, useMemo, useRef, useState } = React;
+
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const roomKey = (code) => `hym:room:${code}`;
+const makeCode = () => Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
+const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+const deckLabel = (k) => (k === "mixed" ? "Mixed" : DECKS[k].label);
+const hue = (k) => HUE[k] || HUE.mixed;
+const comboWord = (n) => (n >= 4 ? `×${n} neural chain` : n >= 2 ? 
