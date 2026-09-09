@@ -1,0 +1,158 @@
+ `×${n} match streak` : "");
+
+function useAdvanceKey(active, fn) {
+  useEffect(() => {
+    if (!active) return;
+    const h = (e) => {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        fn();
+      }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [active, fn]);
+}
+
+function Mark({ color = HUE.neuro }) {
+  return (
+    <svg className="mark" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+      <g stroke={color} strokeWidth="1.1" strokeLinecap="round">
+        <path d="M20 6v7M20 27v7M6 20h7M27 20h7M10.5 10.5l5 5M24.5 24.5l5 5M29.5 10.5l-5 5M15.5 24.5l-5 5" />
+        <circle cx="20" cy="6" r="1.4" fill={color} stroke="none" />
+        <circle cx="34" cy="20" r="1.4" fill={color} stroke="none" />
+        <circle cx="20" cy="34" r="1.4" fill={color} stroke="none" />
+        <circle cx="6" cy="20" r="1.4" fill={color} stroke="none" />
+      </g>
+      <circle cx="20" cy="20" r="5.4" stroke={color} strokeWidth="1.1" />
+      <circle cx="20" cy="20" r="2" fill={color} />
+    </svg>
+  );
+}
+
+function Button({ children, onClick, tone = "solid", accent = HUE.mixed, disabled = false }) {
+  return (
+    <button className={`btn ${tone}`} style={{ "--accent": accent }} onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  );
+}
+
+function Home({ onPick, resume }) {
+  const modes = [
+    ["solo", "▶", "Solo", "Clear the board on your own"],
+    ["duel", "⚔", "Duel", "Two players, one phone"],
+    ["online", "👥", "Play with friends", "Share a four-letter room code"],
+  ];
+  return (
+    <section className="screen home">
+      <header className="brand-row">
+        <Mark />
+        <h1>HYMatch</h1>
+      </header>
+      <div className="mode-list">
+        {modes.map(([k, icon, label, sub]) => (
+          <button key={k} className="mode" onClick={() => onPick(k)}>
+            <span className="mode-icon">{icon}</span>
+            <span className="mode-copy"><strong>{label}</strong><small>{sub}</small></span>
+            <span className="chev">›</span>
+          </button>
+        ))}
+      </div>
+      {resume && <div className="resume"><Button tone="quiet" onClick={resume.go}>Rejoin room {resume.code}</Button></div>}
+      <div className="subjects">
+        <div className="eyebrow">Subjects</div>
+        <div className="chips">
+          {DECK_KEYS.map((k) => <span className="chip" key={k}><i style={{ background: hue(k) }} />{DECKS[k].label}</span>)}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Setup({ mode, onBack, onStart, onCreate, onJoin, notice, onlineReady }) {
+  const [deck, setDeck] = useState("pharm");
+  const [pairs, setPairs] = useState(8);
+  const [name, setName] = useState("");
+  const [n1, setN1] = useState("");
+  const [n2, setN2] = useState("");
+  const [code, setCode] = useState("");
+  const accent = hue(deck);
+  const title = { solo: "Solo", duel: "Duel", online: "Play with friends" }[mode];
+
+  return (
+    <section className="screen">
+      <button className="back" onClick={onBack}>← Back</button>
+      <h2>{title}</h2>
+      <div className="eyebrow">Subject</div>
+      <div className="deck-grid">
+        {[...DECK_KEYS, "mixed"].map((k) => (
+          <button className={`deck-tile ${deck === k ? "active" : ""}`} style={{ "--accent": hue(k) }} key={k} onClick={() => setDeck(k)}>
+            <strong><i style={{ background: hue(k) }} />{deckLabel(k)}</strong>
+            <small>{k === "mixed" ? "All seven decks" : DECKS[k].blurb}</small>
+          </button>
+        ))}
+      </div>
+      <div className="eyebrow">Connections</div>
+      <div className="count-grid">
+        {[6, 8, 10].map((n) => (
+          <button className={`count-tile ${pairs === n ? "active" : ""}`} style={{ "--accent": accent }} key={n} onClick={() => setPairs(n)}>
+            <strong>{n}</strong><small>{n * 2} cards</small>
+          </button>
+        ))}
+      </div>
+
+      {mode === "solo" && <Button accent={accent} onClick={() => onStart(deck, pairs, false, [])}>Start</Button>}
+
+      {mode === "duel" && (
+        <div className="stack">
+          <div className="two-inputs">
+            <input placeholder="Player 1" value={n1} maxLength={12} onChange={(e) => setN1(e.target.value)} />
+            <input placeholder="Player 2" value={n2} maxLength={12} onChange={(e) => setN2(e.target.value)} />
+          </div>
+          <Button accent={accent} onClick={() => onStart(deck, pairs, true, [n1.trim() || "Player 1", n2.trim() || "Player 2"])}>Start duel</Button>
+          <p className="hint">Connect a pair and you keep the turn. Miss and the phone changes hands.</p>
+        </div>
+      )}
+
+      {mode === "online" && (
+        <div className="stack">
+          {!onlineReady && <div className="backend-note">Online rooms need the shared backend configured for this deployment. Solo and Duel work normally.</div>}
+          <input placeholder="Your name" value={name} maxLength={14} onChange={(e) => setName(e.target.value)} />
+          <Button accent={accent} disabled={!onlineReady} onClick={() => onCreate(deck, pairs, name)}>Create a room</Button>
+          <div className="or"><span />or<span /></div>
+          <input className="room-input" placeholder="ROOM CODE" value={code} maxLength={4} onChange={(e) => setCode(e.target.value.toUpperCase())} />
+          <Button tone="quiet" disabled={!onlineReady || code.length !== 4} onClick={() => onJoin(code, name)}>Join room</Button>
+        </div>
+      )}
+      {notice && <div className="notice" style={{ color: accent }}>{notice}</div>}
+    </section>
+  );
+}
+
+function Card({ card, open, matched, shaking, onClick, disabled, accent, cols, pending }) {
+  const inert = disabled || matched || (open && !pending);
+  return (
+    <button className={`card cols-${cols} ${open || matched ? "open" : ""} ${matched ? "matched" : ""} ${shaking ? "shake" : ""}`} onClick={onClick} disabled={inert} aria-label={open || matched ? card.text : "Face-down card"}>
+      <span className="card-inner">
+        <span className="card-back"><Mark color={accent} /></span>
+        <span className={`card-face ${card.side === "q" ? "question" : "answer"}`} style={{ "--accent": accent }}>{card.text}</span>
+      </span>
+    </button>
+  );
+}
+
+function Connection({ from, to, cols, rows, accent }) {
+  const pt = (i) => ({ x: ((i % cols) + 0.5) * (100 / cols), y: (Math.floor(i / cols) + 0.5) * (100 / rows) });
+  const a = pt(from), b = pt(to);
+  return (
+    <svg className="connection" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <line className="connection-glow" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={accent} />
+      <line className="connection-line" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={accent} />
+      <circle cx={a.x} cy={a.y} r="3" fill={accent} /><circle cx={b.x} cy={b.y} r="3" fill={accent} />
+    </svg>
+  );
+}
+
+function Board({ board, flipped, matched, onFlip, onAdvance, pending, connected, disabled, accent }) {
+  cons
