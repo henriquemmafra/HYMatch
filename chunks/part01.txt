@@ -1,0 +1,132 @@
+hite-space: nowrap; }
+.segments { display: flex; gap: 3px; }
+.segments i { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,.09); }
+.collected { padding: 9px 0 2px; }
+.collected-title { color: #5b6479; font-size: 11.5px; margin-bottom: 6px; }
+.collected-item { padding: 6px 0; border-top: 1px solid rgba(255,255,255,.055); font-size: 12.5px; line-height: 1.35; animation: rise .28s ease-out both; }
+.collected-item strong { color: #e8eaf0; }
+.collected-item span:last-child { color: #8891a6; }
+.collected-item small { display: block; color: #5b6479; margin-top: 3px; line-height: 1.4; }
+.action, .action-note { position: sticky; bottom: 0; z-index: 5; margin-top: 14px; }
+.action { border: 1px solid rgba(255,255,255,.1); background: rgba(20,25,38,.96); border-radius: 14px; padding: 13px 14px; box-shadow: 0 -14px 30px #080b14; }
+.action.hit { border-color: var(--accent); }
+.action-label { color: #5b6479; font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; margin-bottom: 8px; }
+.action.hit .action-label { color: var(--accent); }
+.pair-line { font-size: 15px; line-height: 1.4; }
+.pair-line span { color: var(--accent); }
+.pair-line em { font-style: normal; color: #8891a6; }
+.pearl { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.055); }
+.pearl b { display: block; color: var(--accent); font-size: 10px; letter-spacing: 1.4px; }
+.pearl p, .miss-copy { margin: 4px 0 12px; color: #8891a6; font-size: 13px; line-height: 1.45; }
+.action-note { padding: 12px 4px 10px; text-align: center; color: #5b6479; font-size: 12.5px; background: linear-gradient(to bottom,rgba(8,11,20,0),#080b14 35%); }
+.finish { margin-top: 20px; }
+.finish h3 { text-align: center; font-size: 22px; line-height: 1.35; }
+.review { margin-top: 24px; }
+.review-item { padding: 11px 0; border-top: 1px solid rgba(255,255,255,.055); font-size: 13px; line-height: 1.4; }
+.review-item strong, .review-item span, .review-item small { display: block; }
+.review-item span { margin-top: 2px; }
+.review-item small { color: #5b6479; margin-top: 4px; font-size: 11.5px; line-height: 1.45; }
+.waiting { text-align: center; }
+.waiting .back { display: block; }
+.waiting .mark { width: 46px; height: 46px; opacity: .85; margin-top: 52px; }
+.waiting p { color: #8891a6; font-size: 13px; margin: 20px 0 8px; }
+.waiting strong { display: block; font-size: 56px; letter-spacing: 12px; text-indent: 12px; }
+.waiting small { color: #5b6479; }
+.center-message { margin-top: 60px; text-align: center; color: #8891a6; font-size: 13px; }
+@keyframes draw { from { stroke-dashoffset: 220; } to { stroke-dashoffset: 0; } }
+@keyframes shake { 0%,100%{transform:translateX(0)}20%{transform:translateX(-2px)}45%{transform:translateX(2px)}70%{transform:translateX(-1px)} }
+@keyframes rise { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+@keyframes pulse { 0%,100%{opacity:.55}50%{opacity:1} }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+@media (max-width: 380px) { .deck-grid { grid-template-columns: 1fr; } .two-inputs { flex-direction: column; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel" data-presets="env,react">
+const HUE = {
+  genetics: "#5FD39B",
+  pharm: "#A98BFF",
+  metab: "#43CFC4",
+  immuno: "#F0B44C",
+  micro: "#FF8672",
+  biostat: "#57C2F0",
+  neuro: "#7FA6FF",
+  mixed: "#C9CEDC",
+};
+
+const DECKS = {
+  genetics: {
+    label: "Genetics",
+    blurb: "Syndrome → gene or defect",
+    pairs: [
+      ["Marfan syndrome", "FBN1 fibrillin-1 (chr 15)"],
+      ["Achondroplasia", "FGFR3 gain of function"],
+      ["Huntington disease", "HTT, CAG repeats (chr 4)"],
+      ["Cystic fibrosis", "CFTR ΔF508 (chr 7)"],
+      ["Duchenne dystrophy", "Dystrophin frameshift, Xp21"],
+      ["Becker dystrophy", "Dystrophin, non-frameshift"],
+      ["Neurofibromatosis 1", "NF1 neurofibromin (chr 17)"],
+      ["Neurofibromatosis 2", "NF2 merlin (chr 22)"],
+      ["von Hippel–Lindau", "VHL chr 3p, ↑ HIF"],
+      ["Tuberous sclerosis", "TSC1 hamartin / TSC2 tuberin"],
+      ["Fragile X syndrome", "FMR1, CGG repeats"],
+      ["Familial adenomatous polyposis", "APC (chr 5q)"],
+      ["Li–Fraumeni syndrome", "Germline TP53"],
+      ["Retinoblastoma", "RB1 chr 13q, two-hit"],
+      ["Ehlers–Danlos, classic", "COL5A1 / COL5A2"],
+      ["Osteogenesis imperfecta I", "COL1A1 / COL1A2"],
+      ["Myotonic dystrophy 1", "DMPK, CTG repeats"],
+      ["Friedreich ataxia", "FXN, GAA repeats"],
+      ["MEN 2A and 2B", "RET proto-oncogene"],
+      ["Hereditary hemochromatosis", "HFE C282Y (chr 6)"],
+      ["Wilson disease", "ATP7B (chr 13)"],
+      ["α1-antitrypsin deficiency", "SERPINA1, PiZZ"],
+      ["Sickle cell disease", "HBB, Glu→Val at codon 6"],
+      ["Lynch syndrome", "MSH2 / MLH1 mismatch repair"],
+    ],
+  },
+  pharm: {
+    label: "Pharmacology",
+    blurb: "Drug → receptor or mechanism",
+    pairs: [
+      ["Epinephrine", "Agonist at α1, α2, β1 and β2"],
+      ["Epinephrine, low dose", "β effects lead, vasodilation"],
+      ["Epinephrine, high dose", "α1 effects lead, vasoconstriction"],
+      ["Norepinephrine", "α1, α2, β1; almost no β2"],
+      ["Isoproterenol", "β1 = β2 agonist, no α"],
+      ["Dobutamine", "β1 > β2 agonist"],
+      ["Phenylephrine", "Pure α1 agonist"],
+      ["Clonidine", "Central α2 agonist"],
+      ["Albuterol", "Short-acting β2 agonist"],
+      ["Propranolol", "Nonselective β blocker"],
+      ["Metoprolol", "β1-selective blocker"],
+      ["Carvedilol", "β blocker plus α1 blocker"],
+      ["Prazosin", "α1 blocker"],
+      ["Nifedipine", "Dihydropyridine CCB, vessels"],
+      ["Verapamil", "Non-dihydropyridine CCB, heart"],
+      ["Digoxin", "Na+/K+ ATPase inhibitor"],
+      ["Furosemide", "NKCC2 block, thick ascending limb"],
+      ["Hydrochlorothiazide", "NCC block, distal tubule"],
+      ["Spironolactone", "Aldosterone receptor antagonist"],
+      ["Acetazolamide", "Carbonic anhydrase inhibitor"],
+      ["Omeprazole", "Irreversible H+/K+ ATPase block"],
+      ["Warfarin", "Vitamin K epoxide reductase block"],
+      ["Heparin", "Activates antithrombin III"],
+      ["Aspirin", "Irreversible COX-1 and COX-2"],
+      ["Atorvastatin", "HMG-CoA reductase inhibitor"],
+      ["Metformin", "AMPK, ↓ hepatic gluconeogenesis"],
+      ["Sildenafil", "PDE-5 inhibitor, ↑ cGMP"],
+      ["Ondansetron", "5-HT3 receptor antagonist"],
+    ],
+  },
+  metab: {
+    label: "Metabolism",
+    blurb: "Disease → deficient enzyme",
+    pairs: [
+      ["Tay–Sachs disease", "Hexosaminidase A, GM2 builds up"],
+      ["Gaucher disease", "Glucocerebrosidase"],
+      ["Niemann–Pick disease", "Sphi
