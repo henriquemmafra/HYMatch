@@ -1,0 +1,39 @@
+    saveSession({ code, slot: "p1" });
+      setResume({ code, go: () => { setRoom({ code, slot: "p1" }); setScreen("online"); } });
+      setRoom({ code, slot: "p1" }); setScreen("online"); setNotice("");
+    } catch { setNotice("The room could not be created. Try again."); }
+  };
+
+  const joinRoom = async (code, name) => {
+    setNotice("Joining…");
+    try {
+      const r = await sharedGet(roomKey(code));
+      if (!r) throw new Error("missing");
+      const s = JSON.parse(r.value);
+      if (!roomCanBeJoined(s)) { setNotice("That room is already full or has started."); return; }
+      const next = { ...s, v: s.v + 1, status: "playing", players: { ...s.players, p2: name.trim() || "Player 2" }, ts: Date.now() };
+      await sharedSet(roomKey(code), JSON.stringify(next));
+      saveSession({ code, slot: "p2" });
+      setResume({ code, go: () => { setRoom({ code, slot: "p2" }); setScreen("online"); } });
+      setRoom({ code, slot: "p2" }); setScreen("online"); setNotice("");
+    } catch { setNotice("No room with that code."); }
+  };
+
+  const exitOnline = () => { clearSession(); setResume(null); setScreen("home"); };
+
+  return (
+    <main className="app-shell">
+      <div className="app-column">
+        {screen === "home" && <Home resume={resume} onPick={(m) => { setMode(m); setNotice(""); setScreen("setup"); }} />}
+        {screen === "setup" && <Setup mode={mode} notice={notice} onlineReady={onlineReady} onBack={() => setScreen("home")} onStart={(deck, pairs, twoPlayer, names) => { setCfg({ deck, pairs, twoPlayer, names, stamp: Date.now() }); setScreen("game"); }} onCreate={createRoom} onJoin={joinRoom} />}
+        {screen === "game" && <Game key={`${cfg.deck}-${cfg.pairs}-${cfg.twoPlayer}-${cfg.stamp}`} deckKey={cfg.deck} nPairs={cfg.pairs} twoPlayer={cfg.twoPlayer} names={cfg.names} onExit={() => setScreen("home")} />}
+        {screen === "online" && <Online code={room.code} slot={room.slot} onExit={exitOnline} />}
+      </div>
+    </main>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
