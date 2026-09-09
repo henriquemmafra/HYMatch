@@ -1,0 +1,132 @@
+({ code, slot, onExit }) {
+  const [state, setState] = useState(null);
+  const [err, setErr] = useState("");
+  const [stuck, setStuck] = useState(false);
+  const stateRef = useRef(null);
+  const vRef = useRef(-1);
+  useEffect(() => { stateRef.current = state; }, [state]);
+
+  useEffect(() => {
+    let dead = false;
+    const tick = async () => {
+      if (document.hidden) return;
+      try {
+        const r = await sharedGet(roomKey(code));
+        if (!r || dead) return;
+        const s = JSON.parse(r.value);
+        if (s.v > vRef.current) { vRef.current = s.v; setState(s); setErr(""); }
+      } catch {
+        if (!stateRef.current) setErr("No room with that code.");
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1500);
+    return () => { dead = true; clearInterval(id); };
+  }, [code]);
+
+  const save = useCallback(async (next) => {
+    const cur = stateRef.current;
+    if (!cur) return;
+    const s = { ...next, v: cur.v + 1, ts: Date.now() };
+    vRef.current = s.v;
+    setState(s);
+    try { await sharedSet(roomKey(code), JSON.stringify(s)); }
+    catch { setErr("That move did not sync. Check your connection."); }
+  }, [code]);
+
+  useEffect(() => {
+    setStuck(false);
+    if (!state || state.flipped.length !== 2) return;
+    const t = setTimeout(() => setStuck(true), 15000);
+    return () => clearTimeout(t);
+  }, [state]);
+
+  if (!state) return <section className="screen"><button className="back" onClick={onExit}>← Back</button><div className="center-message">{err || "Connecting…"}</div></section>;
+  const accent = hue(state.deckKey);
+  if (state.status === "waiting") return <section className="screen waiting"><button className="back" onClick={onExit}>← Back</button><Mark color={accent} /><p>Give this code to your friend</p><strong>{state.code}</strong><small>Waiting for them to join</small></section>;
+
+  const pending = state.flipped.length === 2;
+  const hit = pending && state.board[state.flipped[0]].pairId === state.board[state.flipped[1]].pairId;
+  const mine = state.turn === slot;
+  const done = state.status === "done";
+  const pairText = pending ? getPairText(state.board, state.flipped) : { q: "", a: "", pearl: "" };
+  const foe = slot === "p1" ? "p2" : "p1";
+  const totalPairs = state.board.length / 2;
+
+  const flip = (i) => {
+    const s = stateRef.current;
+    if (!s || s.status !== "playing" || s.turn !== slot || s.flipped.length >= 2 || s.flipped.includes(i) || s.matched.includes(i)) return;
+    save({ ...s, flipped: [...s.flipped, i] });
+  };
+
+  const advance = useCallback(() => {
+    const s = stateRef.current;
+    if (!s || s.flipped.length !== 2) return;
+    const [a, b] = s.flipped;
+    const good = s.board[a].pairId === s.board[b].pairId;
+    const matched = good ? [...s.matched, a, b] : s.matched;
+    const pair = getPairText(s.board, s.flipped);
+    const streak = { ...(s.streak || { p1: 0, p2: 0 }) };
+    streak[s.turn] = good ? (streak[s.turn] || 0) + 1 : 0;
+    save({
+      ...s,
+      flipped: [],
+      matched,
+      found: good ? [...(s.found || []), { q: pair.q, a: pair.a, p: pair.pearl, by: s.turn }] : (s.found || []),
+      streak,
+      scores: good ? { ...s.scores, [s.turn]: s.scores[s.turn] + 1 } : s.scores,
+      turn: good ? s.turn : s.turn === "p1" ? "p2" : "p1",
+      status: matched.length === s.board.length ? "done" : "playing",
+    });
+  }, [save]);
+
+  useAdvanceKey(pending && (mine || stuck), advance);
+
+  const rematch = () => {
+    const s = stateRef.current;
+    const r = { ...s.rematch, [slot]: true };
+    if (r.p1 && r.p2) save({ ...s, board: buildBoard(s.deckKey, s.board.length / 2), matched: [], flipped: [], found: [], streak: { p1: 0, p2: 0 }, scores: { p1: 0, p2: 0 }, turn: s.turn === "p1" ? "p2" : "p1", status: "playing", rematch: { p1: false, p2: false } });
+    else save({ ...s, rematch: r });
+  };
+
+  const winner = state.scores.p1 === state.scores.p2 ? null : state.scores.p1 > state.scores.p2 ? "p1" : "p2";
+  return (
+    <section className="game-screen">
+      <Hud deckKey={state.deckKey} remaining={totalPairs - state.matched.length / 2} combo={comboWord((state.streak || {})[state.turn] || 0)} onExit={onExit} right={`Room ${state.code}`} />
+      <Collected items={(state.found || []).filter((f) => f.by === foe)} label={state.players[foe]} accent={accent} dim />
+      <PlayerBar names={["p1", "p2"].map((p) => `${state.players[p]}${p === slot ? " (you)" : ""}`)} scores={[state.scores.p1, state.scores.p2]} turn={state.turn === "p1" ? 0 : 1} total={totalPairs} accent={accent} done={done} />
+      <Board board={state.board} flipped={state.flipped} matched={state.matched} onFlip={flip} onAdvance={mine || stuck ? advance : undefined} pending={pending} connected={pending && hit} disabled={(!mine && !stuck) || done} accent={accent} />
+      <Collected items={(state.found || []).filter((f) => f.by === slot)} label="You" accent={accent} />
+      {!done && <ActionBar pending={pending} hit={hit} {...pairText} accent={accent} onAdvance={advance} canAdvance={mine || stuck} cta={mine ? hit ? "Keep going" : "Turn them back" : stuck ? "Move on for them" : `Waiting for ${state.players[state.turn]}`} note={err || (mine ? "Your turn" : `${state.players[state.turn]} is playing`)} />}
+      {done && <div className="finish"><h3>{winner ? `${state.players[winner]} wins ${state.scores[winner]}–${state.scores[winner === "p1" ? "p2" : "p1"]}.` : `Tied at ${state.scores.p1}.`}</h3><Button accent={accent} onClick={rematch} disabled={state.rematch[slot]}>{state.rematch[slot] ? "Waiting for your opponent" : "Play again"}</Button><Review board={state.board} accent={accent} /></div>}
+    </section>
+  );
+}
+
+function App() {
+  const [screen, setScreen] = useState("home");
+  const [mode, setMode] = useState("solo");
+  const [cfg, setCfg] = useState({ deck: "pharm", pairs: 8 });
+  const [room, setRoom] = useState({ code: null, slot: null });
+  const [resume, setResume] = useState(null);
+  const [notice, setNotice] = useState("");
+  const onlineReady = realtimeAvailable();
+
+  useEffect(() => {
+    const s = loadSession();
+    if (s?.code && s?.slot) setResume({ code: s.code, go: () => { setRoom({ code: s.code, slot: s.slot }); setScreen("online"); } });
+  }, []);
+
+  const createRoom = async (deck, pairs, name) => {
+    setNotice("Creating room…");
+    try {
+      let code = null;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const candidate = makeCode();
+        const existing = await sharedGet(roomKey(candidate)).catch(() => null);
+        if (!existing) { code = candidate; break; }
+      }
+      if (!code) throw new Error("Could not allocate a room code");
+      const state = { v: 0, code, deckKey: deck, status: "waiting", board: buildBoard(deck, pairs), matched: [], flipped: [], found: [], streak: { p1: 0, p2: 0 }, turn: "p1", players: { p1: name.trim() || "Player 1", p2: null }, scores: { p1: 0, p2: 0 }, rematch: { p1: false, p2: false }, ts: Date.now() };
+      await sharedSet(roomKey(code), JSON.stringify(state));
+  
